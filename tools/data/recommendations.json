@@ -301,16 +301,16 @@
       }
     ],
     "recommendationControl": "High Availability",
-    "longDescription": "Production AKS clusters require the Standard tier for a financially backed SLA and enhanced node scalability, as the free service lacks these features.\n",
+    "longDescription": "Production AKS clusters require the Standard or Premium tier for a financially backed SLA and enhanced node scalability, as the free service lacks these features. Use the Premium tier for mission-critical workloads.\n",
     "pgVerified": true,
-    "description": "Update AKS tier to Standard",
+    "description": "Update AKS tier to Standard or Premium",
     "potentialBenefits": "SLA guarantee and better scalability",
     "publishedToLearn": false,
     "tags": null,
     "recommendationResourceType": "Microsoft.ContainerService/managedClusters",
     "recommendationImpact": "High",
     "automationAvailable": true,
-    "query": "// Azure Resource Graph Query\n// Returns all AKS clusters not running on the Standard tier\nresources\n| where type == \"microsoft.containerservice/managedclusters\"\n| where sku.tier != \"Standard\"\n| project recommendationId=\"0611251f-e70f-4243-8ddd-cfe894bec2e7\", id, name, tags, param1=strcat(\"skuName: \", sku.name), param2=strcat(\"skuTier: \", sku.tier)\n\n"
+    "query": "// Azure Resource Graph Query\n// Returns all AKS clusters not running on the Standard tier or the Premium tier.\nresources\n| where type =~ \"Microsoft.ContainerService/managedClusters\"\n| where sku.tier !in~ (\"Standard\", \"Premium\")\n| project recommendationId = \"0611251f-e70f-4243-8ddd-cfe894bec2e7\", id, name, tags, param1 = strcat(\"skuName: \", sku.name), param2 = strcat(\"skuTier: \", sku.tier)\n"
   },
   {
     "publishedToAdvisor": null,
@@ -1112,7 +1112,7 @@
     "learnMoreLink": [
       {
         "name": "Image Template resiliency",
-        "url": "https://learn.microsoft.com/en-us/azure/reliability/reliability-image-builder?toc=%2Fazure%2Fvirtual-machines%2Ftoc.json&bc=%2Fazure%2Fvirtual-machines%2Fbreadcrumb%2Ftoc.json#capacity-and-proactive-disaster-recovery-resiliency"
+        "url": "https://learn.microsoft.com/en-us/azure/reliability/reliability-image-builder?toc=%2Fazure%2Fvirtual-machines%2Ftoc.json&bc=%2Fazure%2Fvirtual-machines%2Fbreadcrumb%2Ftoc.json&tabs=graph#disaster-recovery"
       },
       {
         "name": "Azure Image Builder Supported Regions",
@@ -1120,7 +1120,7 @@
       }
     ],
     "recommendationControl": "Disaster Recovery",
-    "longDescription": "The Azure Image Builder service, used for deploying Image Templates, lacks availability zones support. By replicating Image Templates to a secondary, preferably paired, region, quick recovery from a region failure is enabled, ensuring continuous virtual machine deployment from these templates.\n",
+    "longDescription": "The Azure Image Builder service lacks availability zones support. Replicating Image Templates to a secondary region will enable the build of new images in secondary region.\n",
     "pgVerified": true,
     "description": "Replicate your Image Templates to a secondary region",
     "potentialBenefits": "Enhances disaster recovery capability",
@@ -2690,14 +2690,14 @@
     "recommendationControl": "Scalability",
     "longDescription": "ExpressRoute gateways facilitate network traffic and route exchanges. FastPath enhances on-premises to virtual network data path performance by directing traffic straight to virtual machines, bypassing the gateway for improved resiliency through reduced gateway utilization.\n",
     "pgVerified": true,
-    "description": "For better data path performance enable FastPath on ExpressRoute Direct and Gateway",
+    "description": "For better data path performance enable FastPath on ExpressRoute Connections",
     "potentialBenefits": "Enhances speed and resiliency",
     "publishedToLearn": false,
     "tags": null,
     "recommendationResourceType": "Microsoft.Network/connections",
     "recommendationImpact": "Medium",
     "automationAvailable": false,
-    "query": "// under-development\n\n"
+    "query": "// Azure Resource Graph Query\n// Find all ExpressRoute Connections that are connected to ErGw3AZ or UltraPerformance gateway sku that don't have\n// FastPath enabled for both the Gateway Bypass or Private Endpoint/Link service.\nresources\n| where type == \"microsoft.network/connections\"\n| where properties.connectionType =~ 'expressroute'\n| extend gatewayId = tostring(properties.virtualNetworkGateway1.id)\n| join kind=inner (\n    resources\n    | where type =~ \"Microsoft.Network/virtualNetworkGateways\"\n    | where properties.sku.name in~ (\"ErGw3AZ\", \"UltraPerformance\")\n    | extend gatewayId = tostring(id)\n) on gatewayId\n| extend erGatewayBypass = tobool(properties.expressRouteGatewayBypass)\n| extend privateLinkFastPath = tobool(properties.enablePrivateLinkFastPath)\n| where not(erGatewayBypass) or not(privateLinkFastPath)\n| project recommendationId = \"f6a14b32-a727-4ace-b5fa-7b1c6bdff402\", id, name, tags,\n    param1 = iff(erGatewayBypass, \"Enabled: Gateway Bypass\", \"Disabled: Gateway Bypass\"),\n    param2 = iff(privateLinkFastPath, \"Enabled: PE FastPath\", \"Disabled: PE FastPath\"),\n"
   },
   {
     "publishedToAdvisor": null,
@@ -4144,7 +4144,7 @@
     "recommendationResourceType": "Microsoft.Storage/storageAccounts",
     "recommendationImpact": "Medium",
     "automationAvailable": true,
-    "query": "// Azure Resource Graph Query\n// This resource graph query will return all storage accounts that does not have a Private Endpoint Connection or where a private endpoint exists but public access is enabled\nresources\n| where type =~ \"Microsoft.Storage/StorageAccounts\"\n| where isnull(properties.privateEndpointConnections) or properties.privateEndpointConnections[0].properties.provisioningState != (\"Succeeded\") or (isnull(properties.networkAcls) and properties.publicNetworkAccess == 'Enabled')\n| extend param1 = strcat('Private Endpoint: ', iif(isnotnull(properties.privateEndpointConnections),split(properties.privateEndpointConnections[0].properties.privateEndpoint.id,'/')[8],'No Private Endpoint'))\n| extend param2 = strcat('Access: ', iif(properties.publicNetworkAccess == 'Disabled', 'Public Access Disabled', iif(isnotnull(properties.networkAcls), 'NetworkACLs in place','Public Access Enabled')))\n| project recommendationId = \"dc55be60-6f8c-461e-a9d5-a3c7686ed94e\", name, id, tags, param1, param2\n"
+    "query": "// Azure Resource Graph Query\n// This resource graph query will return all storage accounts that does not have a Private Endpoint Connection or where a private endpoint exists but public access is enabled\nresources\n| where type =~ \"Microsoft.Storage/StorageAccounts\"\n| where isnull(properties.privateEndpointConnections) or properties.privateEndpointConnections[0].properties.provisioningState != (\"Succeeded\") or (isnull(properties.networkAcls) and properties.publicNetworkAccess == 'Enabled')\n| extend param1 = strcat('Private Endpoint: ', iif(array_length(properties.privateEndpointConnections) != 0,split(properties.privateEndpointConnections[0].properties.privateEndpoint.id,'/')[8],'No Private Endpoint'))\n| extend param2 = strcat('Access: ', iif(properties.publicNetworkAccess == 'Disabled', 'Public Access Disabled', iif(isnotnull(properties.networkAcls), 'NetworkACLs in place','Public Access Enabled')))\n| project recommendationId = \"dc55be60-6f8c-461e-a9d5-a3c7686ed94e\", name, id, tags, param1, param2\n"
   },
   {
     "publishedToAdvisor": null,
@@ -4660,6 +4660,33 @@
     "recommendationImpact": "High",
     "automationAvailable": false,
     "query": "// cannot-be-validated-with-arg\n"
+  },
+  {
+    "publishedToAdvisor": null,
+    "aprlGuid": "f075a1bd-de9e-4819-9a1d-1ac41037a74f",
+    "recommendationTypeId": null,
+    "recommendationMetadataState": "Active",
+    "learnMoreLink": [
+      {
+        "name": "Azure support for TLS 1.0 and TLS 1.1 will end by 31 October 2024",
+        "url": "https://azure.microsoft.com/updates/azure-support-tls-will-end-by-31-october-2024-2/"
+      },
+      {
+        "name": "Configure the minimum TLS version for a Service Bus namespace",
+        "url": "https://learn.microsoft.com/azure/service-bus-messaging/transport-layer-security-configure-minimum-version"
+      }
+    ],
+    "recommendationControl": "Service Upgrade and Retirement",
+    "longDescription": "As of 31 October 2024, TLS 1.0 and TLS 1.1 will no longer be supported on Azure including Service Bus to enhance security and provide best-in-class encryption for your data. Change the minimum TLS version for your Service Bus namespace to TLS v1.2 or higher.\n",
+    "pgVerified": false,
+    "description": "Configure the minimum TLS version for Service Bus namespaces to TLS v1.2 or higher",
+    "potentialBenefits": "Avoids service disruption",
+    "publishedToLearn": false,
+    "tags": null,
+    "recommendationResourceType": "Microsoft.ServiceBus/namespaces",
+    "recommendationImpact": "High",
+    "automationAvailable": true,
+    "query": "// Azure Resource Graph Query\n// Provides a list of Service Bus Namespace resources that have the lower minimum TLS version.\nresources\n| where type =~ \"Microsoft.ServiceBus/namespaces\"\n| where properties.minimumTlsVersion in (\"1.0\", \"1.1\")\n| project\n    recommendationId = \"f075a1bd-de9e-4819-9a1d-1ac41037a74f\",\n    name,\n    id,\n    tags,\n    param1 = strcat(\"minimumTlsVersion: \", properties.minimumTlsVersion)\n"
   },
   {
     "publishedToAdvisor": null,
@@ -6163,9 +6190,9 @@
       }
     ],
     "recommendationControl": "Scalability",
-    "longDescription": "Each region has its own scaling plans assigned to host pools within that region. However, these plans can become inaccessible if there's a regional failure. To mitigate this risk, it's advisable to create a secondary scaling plan in another region.\n",
+    "longDescription": "Scaling plans can only be assigned to host pools in the same region, on multi-region deployment scenario each region should has its own scaling plan.\n",
     "pgVerified": true,
-    "description": "Scaling plans should be created per region and not scaled across regions",
+    "description": "Create scaling plans per region",
     "potentialBenefits": "Enhanced scaling",
     "publishedToLearn": false,
     "tags": null,
@@ -6186,9 +6213,9 @@
       }
     ],
     "recommendationControl": "Governance",
-    "longDescription": "Create a Validation Pool for early issue detection with planned AVD updates. Adjust limits based on needs. Scale by adding multiple host pools for more users. Regularly test updates on host pools. Validate changes before applying to main environment to avoid downtime.\n",
+    "longDescription": "Validation host pools let you monitor service updates before the service applies them to your standard or non-validation environment.\n",
     "pgVerified": true,
-    "description": "Create a validation host pool for testing of planned updates",
+    "description": "Create a validation host pool",
     "potentialBenefits": "Enhanced environment stability",
     "publishedToLearn": false,
     "tags": null,
@@ -6209,7 +6236,7 @@
       }
     ],
     "recommendationControl": "Governance",
-    "longDescription": "Create maintenance schedules for AVD agent updates to avoid disruptions. Use Scheduled Agent Updates to set maintenance windows for updating Azure Virtual Desktop agent, side-by-side stack, and Geneva Monitoring agent.\n",
+    "longDescription": "Create up to two maintenance windows for the Azure Virtual Desktop agent, side-by-side stack, and Geneva Monitoring agent to get updated so that updates don't happen during peak business hours.\n",
     "pgVerified": true,
     "description": "Configure host pool scheduled agent updates",
     "potentialBenefits": "Enhanced environment stability",
@@ -6232,7 +6259,7 @@
       }
     ],
     "recommendationControl": "Governance",
-    "longDescription": "For optimized AVD configuration, place Hybrid VMs in unique OUs. Segregate Prod and DR units for environment-specific settings. This ensures targeted configurations for session hosts, including FSLogix, timeouts, and session controls.\n",
+    "longDescription": "Place domain joined session hosts VMs in unique OUs. Segregate Prod and DR units for environment-specific settings. This ensures targeted configurations for session hosts, including FSLogix, session controls, etc.\n",
     "pgVerified": true,
     "description": "Ensure a unique OU is used when deploying host pools with domain joined session hosts",
     "potentialBenefits": "Improved AVD hostpool config & segmentation",
@@ -6255,9 +6282,9 @@
       }
     ],
     "recommendationControl": "Disaster Recovery",
-    "longDescription": "Implement Azure Site Recovery (ASR) or Azure Backup for personal host pools to enable seamless failover and failback. This replicates VMs supporting personal desktops to a secondary Azure region, ensuring recovery from a known state in case of a disaster or outage.\n",
+    "longDescription": "Implement Azure Site Recovery (ASR) to replicate or backup stateful session hosts. This replicates VMs to a secondary Azure region or availability zone, ensuring recovery from a known VM state in case of an outage.\n",
     "pgVerified": true,
-    "description": "Use Azure Site Recovery or backups to protect VMs supporting personal desktops",
+    "description": "Use Azure Site Recovery to protect stateful session hosts",
     "potentialBenefits": "Ensures VM recovery & failover",
     "publishedToLearn": false,
     "tags": null,
@@ -7186,7 +7213,7 @@
     "recommendationResourceType": "Microsoft.Resources/resourceGroups",
     "recommendationImpact": "High",
     "automationAvailable": true,
-    "query": "// Azure Resource Graph Query\n// Provides a list of Azure Resource Groups that have resources deployed in a region different than the Resource Group region\nresources\n| project id, name, tags, resourceGroup, location\n| where location != \"global\"                                                                                                          // exclude global resources\n| where resourceGroup != \"networkwatcherrg\"                                                                                           // exclude networkwatcherrg\n| where split(id, \"/\", 3)[0] =~ \"resourceGroups\"                                                                                      // resource is in a resource group\n| extend resourceGroupId = strcat_array(array_slice(split(id, \"/\"),0,4), \"/\")                                                         // create resource group resource id\n| join (resourcecontainers | project containerid=id, containerlocation=location ) on $left.resourceGroupId == $right.['containerid']  // join to resourcecontainers table\n| where  location != containerlocation\n| project recommendationId=\"98bd7098-49d6-491b-86f1-b143d6b1a0ff\", name, id, tags\n| order by id asc\n\n"
+    "query": "// Azure Resource Graph Query\n// Provides a list of Azure Resource Groups that have resources deployed in a region different than the Resource Group region\nresourcecontainers\n| where type =~ \"Microsoft.Resources/subscriptions/resourceGroups\"\n| project resourceGroupId = tolower(id), resourceGroupLocation = location\n| join kind = inner (\n    resources\n    | where location !~ \"Global\" and             // Exclude global resources\n        resourceGroup !~ \"NetworkWatcherRG\" and  // Exclude resources in the NetworkWatcherRG\n        id has \"/resourceGroups/\"                // Exclude resources not in a resource group\n    | project id, name, tags, resourceGroup, location, resourceGroupId = tolower(strcat_array(array_slice(split(id, \"/\"), 0, 4), \"/\"))\n    )\n    on resourceGroupId\n| where resourceGroupLocation !~ location\n| project\n    recommendationId = \"98bd7098-49d6-491b-86f1-b143d6b1a0ff\",\n    name,\n    id,\n    tags,\n    param1 = strcat(\"resourceLocation: \", location),\n    param2 = strcat(\"resourceGroupLocation: \", resourceGroupLocation),\n    param3 = strcat(\"resourceGroup: \", resourceGroup)\n"
   },
   {
     "publishedToAdvisor": null,
@@ -7278,7 +7305,7 @@
     "recommendationResourceType": "Microsoft.DBforPostgreSQL/flexibleServers",
     "recommendationImpact": "High",
     "automationAvailable": true,
-    "query": "// Azure Resource Graph Query\n// Find Database for PostgreSQL instances that are read replicas\nresources\n| where type == \"microsoft.dbforpostgresql/flexibleservers\"\n| where properties.replicationRole == \"AsyncReplica\"\n| project recommendationId = \"2ab85a67-26be-4ed2-a0bb-101b2513ec63\", name, id, tags, param1 = strcat(\"replicationRole:\", properties['replicationRole'])\n"
+    "query": "// Azure Resource Graph Query\n// Find Database for PostgreSQL instances that do not have read replicas\nresources\n| where type == \"microsoft.dbforpostgresql/flexibleservers\" and properties.replicationRole == \"AsyncReplica\"\n| project replicaServerId = id, id = tostring(properties.sourceServerResourceId)\n| join kind=fullouter (resources | where type == \"microsoft.dbforpostgresql/flexibleservers\" and properties.replicationRole != \"AsyncReplica\") on id\n| where isempty(replicaServerId)\n| project recommendationId = \"2ab85a67-26be-4ed2-a0bb-101b2513ec63\", name, id = id1, tags, param1 = strcat(\"replicationRole:\", properties['replicationRole'])\n"
   },
   {
     "publishedToAdvisor": null,
@@ -7544,6 +7571,52 @@
     "recommendationImpact": "Low",
     "automationAvailable": true,
     "query": "// Azure Resource Graph Query\n// Query to list all images whose Hyper-V generation is not V2\nresources\n| where type =~ \"microsoft.compute/galleries/images\"\n| extend VMGeneration = properties.hyperVGeneration\n| where VMGeneration <> 'V2'\n| project RecommendationId=\"1c5e1e58-4e56-491c-8529-10f37af9d4ed\",name,id,tags,param1=strcat(\"VMGeneration: \",VMGeneration)\n\n"
+  },
+  {
+    "publishedToAdvisor": null,
+    "aprlGuid": "b14ee8ed-7d27-447b-b6fb-6472cb5f4b75",
+    "recommendationTypeId": null,
+    "recommendationMetadataState": "Active",
+    "learnMoreLink": [
+      {
+        "name": "Compute Gallery Replication",
+        "url": "https://learn.microsoft.com/azure/virtual-machines/azure-compute-gallery#replication"
+      }
+    ],
+    "recommendationControl": "Disaster Recovery",
+    "longDescription": "On multi-region deployments, replicate Image Versions to a secondary region to ensure disaster recovery capability. This ensures that the Image Versions are available in the secondary region in case of a disaster in the primary region.\n",
+    "pgVerified": true,
+    "description": "Create Image Versions replicas in secondary region",
+    "potentialBenefits": "Enhances disaster recovery capability",
+    "publishedToLearn": false,
+    "tags": null,
+    "recommendationResourceType": "Microsoft.Compute/galleries",
+    "recommendationImpact": "Medium",
+    "automationAvailable": true,
+    "query": "// under-development\n"
+  },
+  {
+    "publishedToAdvisor": null,
+    "aprlGuid": "b3c3ba1d-7de6-442d-8c50-023330fbf765",
+    "recommendationTypeId": null,
+    "recommendationMetadataState": "Active",
+    "learnMoreLink": [
+      {
+        "name": "Compute Gallery Scaling",
+        "url": "https://learn.microsoft.com/en-us/azure/virtual-machines/azure-compute-gallery#scaling"
+      }
+    ],
+    "recommendationControl": "Disaster Recovery",
+    "longDescription": "You can set a different replica count in each target region, based on the scale needs for the region. For every 20 VMs that you create concurrently, we recommend you keep one replica.\n",
+    "pgVerified": true,
+    "description": "Configure Image version replica count per region.",
+    "potentialBenefits": "Enhances disaster recovery capability",
+    "publishedToLearn": false,
+    "tags": null,
+    "recommendationResourceType": "Microsoft.Compute/galleries",
+    "recommendationImpact": "Medium",
+    "automationAvailable": true,
+    "query": "// under-development\n"
   },
   {
     "publishedToAdvisor": null,
@@ -8593,5 +8666,32 @@
     "recommendationImpact": "High",
     "automationAvailable": true,
     "query": "// Azure Resource Graph Query\n// Find SignalR instances that are not configured with the Premium tier\nresources\n| where type == \"microsoft.signalrservice/signalr\"\n| where location in~ (\"australiaeast\", \"brazilsouth\", \"canadacentral\", \"centralindia\", \"centralus\", \"eastasia\", \"eastus\", \"eastus2\", \"francecentral\", \"germanywestcentral\", \"israelcentral\", \"italynorth\", \"japaneast\", \"japanwest\", \"koreacentral\", \"mexicocentral\", \"newzealandnorth\", \"northeurope\", \"norwayeast\", \"polandcentral\", \"qatarcentral\", \"southafricanorth\", \"southcentralus\", \"southeastasia\", \"spaincentral\", \"swedencentral\", \"switzerlandnorth\", \"uaenorth\", \"uksouth\", \"westeurope\", \"westus2\", \"westus3\", \"usgovvirginia\", \"chinanorth3\")\n| where sku.tier != \"Premium\"\n| project recommendationId = \"6a8b3db9-5773-413a-a127-4f7032f34bbd\", name, id, tags, param1 = \"AvailabilityZones: Single Zone\"\n| order by id asc\n\n"
+  },
+  {
+    "publishedToAdvisor": null,
+    "aprlGuid": "6cd57b65-ef84-4088-9ada-c0d8de74c2f7",
+    "recommendationTypeId": null,
+    "recommendationMetadataState": "Active",
+    "learnMoreLink": [
+      {
+        "name": "Azure Managed Grafana service reliability",
+        "url": "https://learn.microsoft.com/azure/managed-grafana/high-availability"
+      },
+      {
+        "name": "Enable zone redundancy in Azure Managed Grafana",
+        "url": "https://learn.microsoft.com/Azure/managed-grafana/how-to-enable-zone-redundancy"
+      }
+    ],
+    "recommendationControl": "High Availability",
+    "longDescription": "Managed Grafana Standard tier is hosted on a dedicated set of VMs to provide redundancy. With zone redundancy enabled, VMs are spread across availability zones (AZ). Related resources are also configured for AZ. Zone redundancy can only be enabled when creating the Azure Managed Grafana instance.\n",
+    "pgVerified": false,
+    "description": "Enable zone redundancy in Managed Grafana",
+    "potentialBenefits": "Enhanced Managed Grafana resilience to failures",
+    "publishedToLearn": false,
+    "tags": null,
+    "recommendationResourceType": "Microsoft.Dashboard/grafana",
+    "recommendationImpact": "Medium",
+    "automationAvailable": true,
+    "query": "// Azure Resource Graph Query\n// Provides a list of Azure Managed Grafana resources that do not zone redundancy enabled.\nresources\n| where type =~ \"Microsoft.Dashboard/grafana\"\n| extend zoneRedundancy = properties.zoneRedundancy\n| where zoneRedundancy !~ \"Enabled\"\n| project\n    recommendationId = \"6cd57b65-ef84-4088-9ada-c0d8de74c2f7\",\n    name,\n    id,\n    tags,\n    param1 = strcat(\"location: \", location),\n    param2 = strcat(\"sku: \", sku.name),\n    param3 = strcat(\"zoneRedundancy: \", zoneRedundancy)\n"
   }
 ]
